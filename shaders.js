@@ -46,7 +46,7 @@ const planetFs = `#version 300 es
     outColor = u_color;
   }`;
 
-// Shader para desenhar as linhas das órbitas
+// Shader para desenhar as linhas das órbitas com cores individuais
 const lineVs = `#version 300 es
     in vec4 position;
     uniform mat4 u_matrix;
@@ -56,7 +56,8 @@ const lineVs = `#version 300 es
 
 const lineFs = `#version 300 es
     precision mediump float;
+    uniform vec4 u_color;
     out vec4 outColor;
     void main() {
-        outColor = vec4(0.4, 0.4, 0.4, 1.0); // Cor cinza para as órbitas
+        outColor = u_color; // Usar a cor passada como uniform
     }`;

@@ -13,10 +13,10 @@ function main() {
     // [CÂMERA] Objeto para guardar o estado da nossa câmera interativa
     const cameraState = {
         target: [0, 0, 0],
-        radius: 500, // Distância inicial aumentada para melhor visualização
+        radius: 500,
         minRadius: 200,
         maxRadius: 5000,
-        rotationX: Math.PI / 3, // Ângulo melhor para ver as órbitas
+        rotationX: Math.PI / 3,
         rotationY: 0,
         isDragging: false,
         lastMouseX: 0,
@@ -29,10 +29,13 @@ function main() {
     // Proporções que ajustamos anteriormente
     const SCALES = {
         ORBIT: 4,
+        ORBIT_LINE: 186,
         PLANET: 5000,
         SUN: 10000,
-        MOON_ORBIT: 375,
+        MOON_ORBIT: 500,
         MOON: 7500,
+        ORBIT_LINE_WIDTH: 0.2,
+        MOON_ORBIT_LINE_WIDTH: 0.01,
     };
 
     const celestialData = {
@@ -67,21 +70,33 @@ function main() {
         return node;
     }
 
-    // Função para criar linha de órbita com Y=0 consistente
-    function createOrbitLine(orbitRadius) {
-        const orbitVertices = [];
-        const segments = 128;
+// Função para criar linha de órbita como uma fita (triangle strip)
+    function createOrbitLine(orbitRadius, lineWidth) {
+        const positions = [];
+        const segments = 128; // Número de segmentos para a órbita
+        const halfWidth = lineWidth / 2.0;
+
         for (let i = 0; i <= segments; i++) {
             const angle = (i / segments) * 2 * Math.PI;
-            // CRÍTICO: Y sempre = 0 para manter as órbitas no plano horizontal onde os planetas orbitam
-            orbitVertices.push(
-                Math.cos(angle) * orbitRadius, 
-                0,  // Y fixo em 0 - mesmo plano onde os planetas orbitam
-                Math.sin(angle) * orbitRadius
-            );
+            const cosAngle = Math.cos(angle);
+            const sinAngle = Math.sin(angle);
+
+            // Ponto central no círculo
+            const x = cosAngle * orbitRadius;
+            const z = sinAngle * orbitRadius;
+
+            // Vetor de direção do centro para fora (perpendicular ao trajeto)
+            const dirX = cosAngle;
+            const dirZ = sinAngle;
+
+            // Vértice externo da fita
+            positions.push(x + dirX * halfWidth, 0, z + dirZ * halfWidth);
+            // Vértice interno da fita
+            positions.push(x - dirX * halfWidth, 0, z - dirZ * halfWidth);
         }
-        return twgl.createBufferInfoFromArrays(gl, { 
-            position: { numComponents: 3, data: orbitVertices } 
+
+        return twgl.createBufferInfoFromArrays(gl, {
+            position: { numComponents: 3, data: positions },
         });
     }
 
@@ -104,13 +119,22 @@ function main() {
         });
         orbitNode.children.push(planetNode);
         
-        // Criar linha de órbita do planeta (centrada no Sol)
-        const orbitRadius = (data.orbitRadius / AU) * SCALES.ORBIT;
+        // CRIAR LINHA DE ÓRBITA DO PLANETA
+        const orbitRadius = (data.orbitRadius / AU) * SCALES.ORBIT_LINE;
+        console.log(`Criando órbita para ${name} com raio: ${orbitRadius}`); // Debug
+        
         scene.orbits.push({
-            bufferInfo: createOrbitLine(orbitRadius),
+            bufferInfo: createOrbitLine(orbitRadius, SCALES.ORBIT_LINE_WIDTH),
             programInfo: lineProgramInfo,
-            planetName: name, // Para debug
-            orbitType: 'planet'
+            color: [
+                data.color[0] * 0.7,  // Cor baseada no planeta mas mais visível
+                data.color[1] * 0.7,
+                data.color[2] * 0.7,
+                1.0  // Opacidade total
+            ],
+            planetName: name,
+            orbitType: 'planet',
+            orbitRadius: orbitRadius // Para debug
         });
         
         // Criar luas se existirem
@@ -128,12 +152,14 @@ function main() {
                 });
                 moonOrbitNode.children.push(moonNode);
                 
-                // Criar linha de órbita da lua (será transformada junto com o planeta)
+                // CRIAR LINHA DE ÓRBITA DA LUA
                 const moonOrbitRadius = (moonData.orbitRadius / AU) * SCALES.MOON_ORBIT;
+                
                 scene.orbits.push({
-                    bufferInfo: createOrbitLine(moonOrbitRadius),
+                    bufferInfo: createOrbitLine(moonOrbitRadius, SCALES.MOON_ORBIT_LINE_WIDTH),
                     programInfo: lineProgramInfo,
-                    parentNode: planetNode, // Referência para transformar junto com o planeta
+                    color: [1.0, 1.0, 1.0, 1.0], // Cinza para luas
+                    parentNode: planetNode,
                     orbitType: 'moon',
                     moonName: moonName,
                     planetName: name
@@ -166,8 +192,10 @@ function main() {
 
         const displayDay = simulation.time - INITIAL_SIMULATION_DAY;
 
-        document.getElementById('time-slider').value = displayDay;
-        document.getElementById('date-label').textContent = `Dia: ${Math.floor(displayDay)}`;
+        const dateLabel = document.getElementById('date-label');
+        const speedLabel = document.getElementById('speed-label');
+        if (dateLabel) dateLabel.textContent = `Dia: ${Math.floor(displayDay)}`;
+        if (speedLabel) speedLabel.textContent = `Velocidade: ${simulation.speed}x`;
 
         // --- Atualização das Matrizes dos Objetos ---
         const simTime = simulation.time;
@@ -186,8 +214,7 @@ function main() {
             const orbitAngle = (simTime / data.orbitalPeriod) * 2 * Math.PI;
             const orbitNode = scene.nodes[`${name}Orbit`];
             
-            // CRÍTICO: O planeta orbita exatamente no plano Y=0
-            // Isso garante que ele fique exatamente sobre a linha de órbita
+            // CRÍTICO: Planeta orbita exatamente no mesmo raio da linha de órbita
             m4.identity(orbitNode.localMatrix);
             m4.rotateY(orbitNode.localMatrix, orbitAngle, orbitNode.localMatrix);
             m4.translate(orbitNode.localMatrix, [orbitRadius, 0, 0], orbitNode.localMatrix);
@@ -205,7 +232,6 @@ function main() {
                     const moonOrbitAngle = (simTime / moonData.orbitalPeriod) * 2 * Math.PI;
                     const moonOrbitNode = scene.nodes[`${moonName}Orbit`];
                     
-                    // CRÍTICO: A lua também orbita no plano Y=0 relativo ao planeta
                     m4.identity(moonOrbitNode.localMatrix);
                     m4.rotateY(moonOrbitNode.localMatrix, moonOrbitAngle, moonOrbitNode.localMatrix);
                     m4.translate(moonOrbitNode.localMatrix, [moonOrbitRadius, 0, 0], moonOrbitNode.localMatrix);
@@ -230,7 +256,6 @@ function main() {
         const aspect = gl.canvas.clientWidth / gl.canvas.clientHeight;
         const projection = m4.perspective(fov, aspect, zNear, zFar);
         
-        // [CÂMERA] Calcula a posição da câmera a partir do seu estado
         const cameraPosition = [
             Math.cos(cameraState.rotationY) * Math.sin(cameraState.rotationX) * cameraState.radius,
             Math.cos(cameraState.rotationX) * cameraState.radius,
@@ -240,26 +265,32 @@ function main() {
         const view = m4.inverse(camera);
         const viewProjection = m4.multiply(projection, view);
 
-        // --- Desenhar órbitas PRIMEIRO (para que fiquem atrás dos planetas) ---
+        // --- DESENHAR ÓRBITAS PRIMEIRO ---
         gl.useProgram(lineProgramInfo.program);
         
-        // Desenhar órbitas dos planetas e luas
-        scene.orbits.forEach(orbit => {
+        console.log(`Desenhando ${scene.orbits.length} órbitas`); // Debug
+        
+        scene.orbits.forEach((orbit, index) => {
             twgl.setBuffersAndAttributes(gl, lineProgramInfo, orbit.bufferInfo);
             
             let orbitMatrix;
             if (orbit.orbitType === 'planet') {
-                // Órbita do planeta - centrada no Sol (sem transformação adicional)
+                // Órbita do planeta - centrada no Sol (matriz identidade)
                 orbitMatrix = viewProjection;
+                console.log(`Desenhando órbita ${index} do planeta ${orbit.planetName}`); // Debug
             } else if (orbit.orbitType === 'moon' && orbit.parentNode) {
                 // Órbita da lua - transformada pela posição do planeta
                 orbitMatrix = m4.multiply(viewProjection, orbit.parentNode.worldMatrix);
+                console.log(`Desenhando órbita ${index} da lua ${orbit.moonName}`); // Debug
             } else {
                 orbitMatrix = viewProjection;
             }
             
-            twgl.setUniforms(lineProgramInfo, { u_matrix: orbitMatrix });
-            twgl.drawBufferInfo(gl, orbit.bufferInfo, gl.LINE_LOOP);
+            twgl.setUniforms(lineProgramInfo, { 
+                u_matrix: orbitMatrix,
+                u_color: orbit.color
+            });
+            twgl.drawBufferInfo(gl, orbit.bufferInfo, gl.TRIANGLE_STRIP);
         });
 
         // --- Desenhar objetos celestes ---
@@ -279,7 +310,7 @@ function main() {
         requestAnimationFrame(render);
     }
 
-    // [CÂMERA] Listeners de eventos do mouse para controlar a câmera
+    // [CÂMERA] Listeners de eventos do mouse
     canvas.addEventListener('mousedown', (e) => {
         cameraState.isDragging = true;
         cameraState.lastMouseX = e.clientX;
@@ -298,7 +329,6 @@ function main() {
         cameraState.rotationY += deltaX * 0.005;
         cameraState.rotationX += deltaY * 0.005;
 
-        // Limita a rotação vertical para não "virar de cabeça para baixo"
         cameraState.rotationX = Math.max(0.1, Math.min(Math.PI - 0.1, cameraState.rotationX));
 
         cameraState.lastMouseX = e.clientX;
@@ -306,25 +336,51 @@ function main() {
     });
     
     canvas.addEventListener('wheel', (e) => {
-        // Previne a página de rolar junto
         e.preventDefault();
         cameraState.radius += e.deltaY * 1.5;
-        // Limita o zoom para não se aproximar ou afastar demais
         cameraState.radius = Math.max(cameraState.minRadius, Math.min(cameraState.maxRadius, cameraState.radius));
     });
 
-    // Controles de UI
+    const speedLevels = [-64, -32, -16, -8, -4, -2, -1, 1, 2, 4, 8, 16, 32, 64];
+    let currentSpeedIndex = speedLevels.indexOf(1); // Começa na velocidade 1x
+    simulation.speed = speedLevels[currentSpeedIndex];
+
     const playPauseButton = document.getElementById('play-pause-button');
-    const timeSlider = document.getElementById('time-slider');
+    const forwardButton = document.getElementById('forward-button');
+    const rewindButton = document.getElementById('rewind-button');
+    const speedLabel = document.getElementById('speed-label');
     
-    playPauseButton.addEventListener('click', () => {
-        simulation.isPlaying = !simulation.isPlaying;
-        playPauseButton.textContent = simulation.isPlaying ? 'Pause' : 'Play';
-    });
-    
-    timeSlider.addEventListener('input', (e) => {
-        simulation.time = parseFloat(e.target.value) + INITIAL_SIMULATION_DAY;
-    });
+    function updateSpeed() {
+        simulation.speed = speedLevels[currentSpeedIndex];
+        if (speedLabel) {
+            speedLabel.textContent = `Velocidade: ${simulation.speed}x`;
+        }
+    }
+
+    if (playPauseButton) {
+        playPauseButton.addEventListener('click', () => {
+            simulation.isPlaying = !simulation.isPlaying;
+            playPauseButton.textContent = simulation.isPlaying ? 'Pause' : 'Play';
+        });
+    }
+
+    if (forwardButton) {
+        forwardButton.addEventListener('click', () => {
+            if (currentSpeedIndex < speedLevels.length - 1) {
+                currentSpeedIndex++;
+                updateSpeed();
+            }
+        });
+    }
+
+    if (rewindButton) {
+        rewindButton.addEventListener('click', () => {
+            if (currentSpeedIndex > 0) {
+                currentSpeedIndex--;
+                updateSpeed();
+            }
+        });
+    }
 
     requestAnimationFrame(render);
 }
