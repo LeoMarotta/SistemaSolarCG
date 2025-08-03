@@ -10,11 +10,10 @@ function main() {
         return;
     }
 
-    // [CÂMERA] Objeto para guardar o estado da nossa câmera interativa
     const cameraState = {
         target: [0, 0, 0],
-        radius: 500,
-        minRadius: 200,
+        radius: 200,
+        minRadius: 100,
         maxRadius: 5000,
         rotationX: Math.PI / 3,
         rotationY: 0,
@@ -23,10 +22,8 @@ function main() {
         lastMouseY: 0,
     };
 
-    // --- CONSTANTES E DADOS ---
     const AU = 149.6e6; 
     
-    // Proporções que ajustamos anteriormente
     const SCALES = {
         ORBIT: 4,
         ORBIT_LINE: 186,
@@ -39,24 +36,39 @@ function main() {
     };
 
     const celestialData = {
-        sol:      { radius: 696340, rotationPeriod: 27, color: [1, 0.8, 0.4, 1] },
-        mercurio: { radius: 2439.7, orbitRadius: 0.387 * AU, orbitalPeriod: 88.0, rotationPeriod: 58.6, color: [0.6, 0.6, 0.6, 1] },
-        venus:    { radius: 6051.8, orbitRadius: 0.723 * AU, orbitalPeriod: 224.7, rotationPeriod: -243.0, color: [0.9, 0.7, 0.5, 1] },
-        terra:    { radius: 6371, orbitRadius: 1 * AU, orbitalPeriod: 365.2, rotationPeriod: 1.0, color: [0.2, 0.5, 1, 1], moons: { lua: { radius: 1737.4, orbitRadius: 384400, orbitalPeriod: 27.3, color: [0.7, 0.7, 0.7, 1] } } },
-        marte:    { radius: 3389.5, orbitRadius: 1.524 * AU, orbitalPeriod: 687.0, rotationPeriod: 1.03, color: [0.8, 0.4, 0.2, 1] },
-        ceres:    { radius: 476, orbitRadius: 2.766 * AU, orbitalPeriod: 1680, rotationPeriod: 0.37, color: [0.5, 0.5, 0.4, 1] },
-        jupiter:  { radius: 69911, orbitRadius: 5.204 * AU, orbitalPeriod: 4332.6, rotationPeriod: 0.41, color: [0.8, 0.7, 0.6, 1] },
-        saturno:  { radius: 58232, orbitRadius: 9.582 * AU, orbitalPeriod: 10759.2, rotationPeriod: 0.44, color: [0.9, 0.85, 0.7, 1] },
-        urano:    { radius: 25362, orbitRadius: 19.229 * AU, orbitalPeriod: 30688.5, rotationPeriod: -0.72, color: [0.6, 0.8, 0.9, 1] },
-        netuno:   { radius: 24622, orbitRadius: 30.104 * AU, orbitalPeriod: 60182, rotationPeriod: 0.67, color: [0.3, 0.5, 0.9, 1] },
+        sol:      { radius: 696340, rotationPeriod: 27, textureUrl: 'textures/2k_sun.jpg' },
+        mercurio: { radius: 2439.7, orbitRadius: 0.387 * AU, orbitalPeriod: 88.0, rotationPeriod: 58.6, textureUrl: 'textures/2k_mercury.jpg' },
+        venus:    { radius: 6051.8, orbitRadius: 0.723 * AU, orbitalPeriod: 224.7, rotationPeriod: -243.0, textureUrl: 'textures/2k_venus_surface.jpg' },
+        terra:    { radius: 6371, orbitRadius: 1 * AU, orbitalPeriod: 365.2, rotationPeriod: 1.0, textureUrl: 'textures/2k_earth_daymap.jpg', moons: { 
+            lua: { radius: 1737.4, orbitRadius: 384400, orbitalPeriod: 27.3, textureUrl: 'textures/2k_moon.jpg' } } 
+        },
+        marte:    { radius: 3389.5, orbitRadius: 1.524 * AU, orbitalPeriod: 687.0, rotationPeriod: 1.03, textureUrl: 'textures/2k_mars.jpg' },
+        ceres:    { radius: 476, orbitRadius: 2.766 * AU, orbitalPeriod: 1680, rotationPeriod: 0.37, textureUrl: 'textures/2k_moon.jpg' }, // Usando textura da lua para Ceres
+        jupiter:  { radius: 69911, orbitRadius: 5.204 * AU, orbitalPeriod: 4332.6, rotationPeriod: 0.41, textureUrl: 'textures/2k_jupiter.jpg' },
+        saturno:  { radius: 58232, orbitRadius: 9.582 * AU, orbitalPeriod: 10759.2, rotationPeriod: 0.44, textureUrl: 'textures/2k_saturn.jpg' },
+        urano:    { radius: 25362, orbitRadius: 19.229 * AU, orbitalPeriod: 30688.5, rotationPeriod: -0.72, textureUrl: 'textures/2k_uranus.jpg' },
+        netuno:   { radius: 24622, orbitRadius: 30.104 * AU, orbitalPeriod: 60182, rotationPeriod: 0.67, textureUrl: 'textures/2k_neptune.jpg' },
     };
 
-    // --- SETUP DA CENA E OBJETOS ---
+    const textures = twgl.createTextures(gl, {
+        sol:      { src: celestialData.sol.textureUrl },
+        mercurio: { src: celestialData.mercurio.textureUrl },
+        venus:    { src: celestialData.venus.textureUrl },
+        terra:    { src: celestialData.terra.textureUrl },
+        lua:      { src: celestialData.terra.moons.lua.textureUrl },
+        marte:    { src: celestialData.marte.textureUrl },
+        ceres:    { src: celestialData.ceres.textureUrl },
+        jupiter:  { src: celestialData.jupiter.textureUrl },
+        saturno:  { src: celestialData.saturno.textureUrl },
+        urano:    { src: celestialData.urano.textureUrl },
+        netuno:   { src: celestialData.netuno.textureUrl }
+    });
+
     const sunProgramInfo = twgl.createProgramInfo(gl, [sunVs, sunFs]);
     const planetProgramInfo = twgl.createProgramInfo(gl, [planetVs, planetFs]);
     const lineProgramInfo = twgl.createProgramInfo(gl, [lineVs, lineFs]);
     const sphereBufferInfo = twgl.primitives.createSphereBufferInfo(gl, 1, 32, 24);
-
+    const lightPosition = [0, 0, 0];
     const scene = { nodes: {}, drawables: [], orbits: [] };
     const simulation = { time: INITIAL_SIMULATION_DAY, speed: 1, isPlaying: true, lastTime: 0 };
 
@@ -70,95 +82,75 @@ function main() {
         return node;
     }
 
-// Função para criar linha de órbita como uma fita (triangle strip)
     function createOrbitLine(orbitRadius, lineWidth) {
         const positions = [];
-        const segments = 128; // Número de segmentos para a órbita
+        const segments = 128;
         const halfWidth = lineWidth / 2.0;
-
         for (let i = 0; i <= segments; i++) {
             const angle = (i / segments) * 2 * Math.PI;
             const cosAngle = Math.cos(angle);
             const sinAngle = Math.sin(angle);
-
-            // Ponto central no círculo
             const x = cosAngle * orbitRadius;
             const z = sinAngle * orbitRadius;
-
-            // Vetor de direção do centro para fora (perpendicular ao trajeto)
             const dirX = cosAngle;
             const dirZ = sinAngle;
-
-            // Vértice externo da fita
             positions.push(x + dirX * halfWidth, 0, z + dirZ * halfWidth);
-            // Vértice interno da fita
             positions.push(x - dirX * halfWidth, 0, z - dirZ * halfWidth);
         }
-
-        return twgl.createBufferInfoFromArrays(gl, {
-            position: { numComponents: 3, data: positions },
-        });
+        return twgl.createBufferInfoFromArrays(gl, { position: { numComponents: 3, data: positions } });
     }
 
-    // Criar o Sol
-    const sunNode = createNode("sol", { programInfo: sunProgramInfo, bufferInfo: sphereBufferInfo, uniforms: {} });
+    const sunNode = createNode("sol", { 
+        programInfo: sunProgramInfo, 
+        bufferInfo: sphereBufferInfo, 
+        uniforms: { u_texture: textures.sol } 
+    });
     
-    // Criar planetas e suas órbitas
     for (const [name, data] of Object.entries(celestialData)) {
         if (name === 'sol') continue;
         
-        // Criar nó de órbita do planeta
         const orbitNode = createNode(`${name}Orbit`);
         sunNode.children.push(orbitNode);
         
-        // Criar o planeta
-        const planetNode = createNode(name, { 
-            programInfo: planetProgramInfo, 
-            bufferInfo: sphereBufferInfo, 
-            uniforms: { u_color: data.color } 
-        });
+    const planetNode = createNode(name, { 
+        programInfo: planetProgramInfo, 
+        bufferInfo: sphereBufferInfo, 
+        uniforms: { 
+            u_texture: textures[name],
+            u_lightPosition: lightPosition 
+        } 
+    });
         orbitNode.children.push(planetNode);
         
-        // CRIAR LINHA DE ÓRBITA DO PLANETA
         const orbitRadius = (data.orbitRadius / AU) * SCALES.ORBIT_LINE;
-        console.log(`Criando órbita para ${name} com raio: ${orbitRadius}`); // Debug
         
         scene.orbits.push({
             bufferInfo: createOrbitLine(orbitRadius, SCALES.ORBIT_LINE_WIDTH),
             programInfo: lineProgramInfo,
-            color: [
-                data.color[0] * 0.7,  // Cor baseada no planeta mas mais visível
-                data.color[1] * 0.7,
-                data.color[2] * 0.7,
-                1.0  // Opacidade total
-            ],
+            color: [0.5, 0.5, 0.5, 1.0], 
             planetName: name,
             orbitType: 'planet',
-            orbitRadius: orbitRadius // Para debug
+            orbitRadius: orbitRadius
         });
         
-        // Criar luas se existirem
         if (data.moons) {
             for (const [moonName, moonData] of Object.entries(data.moons)) {
-                // Criar nó de órbita da lua
                 const moonOrbitNode = createNode(`${moonName}Orbit`);
                 planetNode.children.push(moonOrbitNode);
-                
-                // Criar a lua
                 const moonNode = createNode(moonName, { 
                     programInfo: planetProgramInfo, 
                     bufferInfo: sphereBufferInfo, 
-                    uniforms: { u_color: moonData.color } 
+                    uniforms: { 
+                        u_texture: textures[moonName],
+                        u_lightPosition: lightPosition 
+                    }
                 });
                 moonOrbitNode.children.push(moonNode);
-                
-                // CRIAR LINHA DE ÓRBITA DA LUA
                 const moonOrbitRadius = (moonData.orbitRadius / AU) * SCALES.MOON_ORBIT;
-                
                 scene.orbits.push({
                     bufferInfo: createOrbitLine(moonOrbitRadius, SCALES.MOON_ORBIT_LINE_WIDTH),
                     programInfo: lineProgramInfo,
-                    color: [1.0, 1.0, 1.0, 1.0], // Cinza para luas
+                    color: [0.5, 0.5, 0.5, 1.0],
                     parentNode: planetNode,
                     orbitType: 'moon',
                     moonName: moonName,
@@ -197,16 +189,13 @@ function main() {
         if (dateLabel) dateLabel.textContent = `Dia: ${Math.floor(displayDay)}`;
         if (speedLabel) speedLabel.textContent = `Velocidade: ${simulation.speed}x`;
 
-        // --- Atualização das Matrizes dos Objetos ---
         const simTime = simulation.time;
         const sunData = celestialData.sol;
         
-        // Atualizar o Sol
         m4.identity(scene.nodes.sol.localMatrix);
         m4.rotateY(scene.nodes.sol.localMatrix, (simTime / sunData.rotationPeriod) * 2 * Math.PI, scene.nodes.sol.localMatrix);
         m4.scale(scene.nodes.sol.localMatrix, Array(3).fill((sunData.radius / AU) * SCALES.SUN), scene.nodes.sol.localMatrix);
         
-        // Atualizar planetas
         for (const [name, data] of Object.entries(celestialData)) {
             if (name === 'sol') continue;
             
@@ -214,7 +203,6 @@ function main() {
             const orbitAngle = (simTime / data.orbitalPeriod) * 2 * Math.PI;
             const orbitNode = scene.nodes[`${name}Orbit`];
             
-            // CRÍTICO: Planeta orbita exatamente no mesmo raio da linha de órbita
             m4.identity(orbitNode.localMatrix);
             m4.rotateY(orbitNode.localMatrix, orbitAngle, orbitNode.localMatrix);
             m4.translate(orbitNode.localMatrix, [orbitRadius, 0, 0], orbitNode.localMatrix);
@@ -225,7 +213,6 @@ function main() {
             m4.rotateY(planetNode.localMatrix, (simTime / data.rotationPeriod) * 2 * Math.PI, planetNode.localMatrix);
             m4.scale(planetNode.localMatrix, [planetScale, planetScale, planetScale], planetNode.localMatrix);
             
-            // Atualizar luas
             if (data.moons) {
                 for (const [moonName, moonData] of Object.entries(data.moons)) {
                     const moonOrbitRadius = (moonData.orbitRadius / AU) * SCALES.MOON_ORBIT;
@@ -246,7 +233,6 @@ function main() {
         
         updateWorldMatrix(sunNode);
 
-        // --- Desenhar a cena ---
         twgl.resizeCanvasToDisplaySize(gl.canvas);
         gl.viewport(0, 0, gl.canvas.width, gl.canvas.height);
         gl.enable(gl.DEPTH_TEST);
@@ -265,35 +251,20 @@ function main() {
         const view = m4.inverse(camera);
         const viewProjection = m4.multiply(projection, view);
 
-        // --- DESENHAR ÓRBITAS PRIMEIRO ---
         gl.useProgram(lineProgramInfo.program);
         
-        console.log(`Desenhando ${scene.orbits.length} órbitas`); // Debug
-        
-        scene.orbits.forEach((orbit, index) => {
+        scene.orbits.forEach((orbit) => {
             twgl.setBuffersAndAttributes(gl, lineProgramInfo, orbit.bufferInfo);
             
-            let orbitMatrix;
-            if (orbit.orbitType === 'planet') {
-                // Órbita do planeta - centrada no Sol (matriz identidade)
-                orbitMatrix = viewProjection;
-                console.log(`Desenhando órbita ${index} do planeta ${orbit.planetName}`); // Debug
-            } else if (orbit.orbitType === 'moon' && orbit.parentNode) {
-                // Órbita da lua - transformada pela posição do planeta
+            let orbitMatrix = viewProjection;
+            if (orbit.orbitType === 'moon' && orbit.parentNode) {
                 orbitMatrix = m4.multiply(viewProjection, orbit.parentNode.worldMatrix);
-                console.log(`Desenhando órbita ${index} da lua ${orbit.moonName}`); // Debug
-            } else {
-                orbitMatrix = viewProjection;
             }
             
-            twgl.setUniforms(lineProgramInfo, { 
-                u_matrix: orbitMatrix,
-                u_color: orbit.color
-            });
+            twgl.setUniforms(lineProgramInfo, { u_matrix: orbitMatrix, u_color: orbit.color });
             twgl.drawBufferInfo(gl, orbit.bufferInfo, gl.TRIANGLE_STRIP);
         });
 
-        // --- Desenhar objetos celestes ---
         scene.drawables.forEach(drawable => {
             gl.useProgram(drawable.programInfo.program);
             twgl.setBuffersAndAttributes(gl, drawable.programInfo, drawable.bufferInfo);
@@ -310,39 +281,26 @@ function main() {
         requestAnimationFrame(render);
     }
 
-    // [CÂMERA] Listeners de eventos do mouse
-    canvas.addEventListener('mousedown', (e) => {
-        cameraState.isDragging = true;
-        cameraState.lastMouseX = e.clientX;
-        cameraState.lastMouseY = e.clientY;
-    });
-    
-    canvas.addEventListener('mouseup', () => {
-        cameraState.isDragging = false;
-    });
-    
+    canvas.addEventListener('mousedown', (e) => { cameraState.isDragging = true; cameraState.lastMouseX = e.clientX; cameraState.lastMouseY = e.clientY; });
+    canvas.addEventListener('mouseup', () => { cameraState.isDragging = false; });
     canvas.addEventListener('mousemove', (e) => {
         if (!cameraState.isDragging) return;
         const deltaX = e.clientX - cameraState.lastMouseX;
         const deltaY = e.clientY - cameraState.lastMouseY;
-        
         cameraState.rotationY += deltaX * 0.005;
         cameraState.rotationX += deltaY * 0.005;
-
         cameraState.rotationX = Math.max(0.1, Math.min(Math.PI - 0.1, cameraState.rotationX));
-
         cameraState.lastMouseX = e.clientX;
         cameraState.lastMouseY = e.clientY;
     });
-    
     canvas.addEventListener('wheel', (e) => {
         e.preventDefault();
         cameraState.radius += e.deltaY * 1.5;
         cameraState.radius = Math.max(cameraState.minRadius, Math.min(cameraState.maxRadius, cameraState.radius));
     });
 
-    const speedLevels = [-64, -32, -16, -8, -4, -2, -1, 1, 2, 4, 8, 16, 32, 64];
-    let currentSpeedIndex = speedLevels.indexOf(1); // Começa na velocidade 1x
+    const speedLevels = [-64, -32, -16, -8, -4, -2, -1, -0.5, 0.5, 1, 2, 4, 8, 16, 32, 64];
+    let currentSpeedIndex = speedLevels.indexOf(1);
     simulation.speed = speedLevels[currentSpeedIndex];
 
     const playPauseButton = document.getElementById('play-pause-button');
