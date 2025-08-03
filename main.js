@@ -1,223 +1,332 @@
 "use strict";
 
-const m4 = twgl.m4;
-
-const canvas = document.querySelector("#glcanvas");
-const gl = canvas.getContext("webgl2");
-
-// --- SHADERS PARA PLANETAS (sem alteração) ---
-const planetVs = `
-  #version 300 es
-  in vec4 position;
-  uniform mat4 u_worldViewProjection;
-  void main() {
-    gl_Position = u_worldViewProjection * position;
-  }
-`;
-
-const planetFs = `
-  #version 300 es
-  precision mediump float;
-  uniform vec4 u_color;
-  out vec4 outColor;
-  void main() {
-    outColor = u_color;
-  }
-`;
-
-// --- NOVOS SHADERS PARA O SOL ---
-const sunVs = `
-  #version 300 es
-  in vec4 position;
-
-  uniform mat4 u_worldViewProjection;
-  uniform mat4 u_world;
-
-  out vec3 v_worldPosition;
-
-  void main() {
-    gl_Position = u_worldViewProjection * position;
-    v_worldPosition = (u_world * position).xyz;
-  }
-`;
-
-const sunFs = `
-  #version 300 es
-  precision highp float;
-
-  in vec3 v_worldPosition;
-  uniform float u_time;
-  out vec4 outColor;
-
-  vec3 hash(vec3 p) {
-    p = vec3(
-      dot(p, vec3(127.1, 311.7, 74.7)),
-      dot(p, vec3(269.5, 183.3, 246.1)),
-      dot(p, vec3(113.5, 271.9, 124.6))
-    );
-    return -1.0 + 2.0 * fract(sin(p) * 43758.5453123);
-  }
-
-  float noise(vec3 p) {
-    vec3 i = floor(p);
-    vec3 f = fract(p);
-    f = f * f * (3.0 - 2.0 * f);
-
-    return mix(
-      mix(
-        mix(dot(hash(i + vec3(0, 0, 0)), f - vec3(0, 0, 0)),
-            dot(hash(i + vec3(1, 0, 0)), f - vec3(1, 0, 0)), f.x),
-        mix(dot(hash(i + vec3(0, 1, 0)), f - vec3(0, 1, 0)),
-            dot(hash(i + vec3(1, 1, 0)), f - vec3(1, 1, 0)), f.x),
-        f.y),
-      mix(
-        mix(dot(hash(i + vec3(0, 0, 1)), f - vec3(0, 0, 1)),
-            dot(hash(i + vec3(1, 0, 1)), f - vec3(1, 0, 1)), f.x),
-        mix(dot(hash(i + vec3(0, 1, 1)), f - vec3(0, 1, 1)),
-            dot(hash(i + vec3(1, 1, 1)), f - vec3(1, 1, 1)), f.x),
-        f.y),
-      f.z
-    );
-  }
-
-  float fbm(vec3 p) {
-    float value = 0.0;
-    float amplitude = 0.5;
-    for (int i = 0; i < 5; i++) {
-      value += amplitude * noise(p);
-      p *= 2.0;
-      amplitude *= 0.5;
+function main() {
+    const INITIAL_SIMULATION_DAY = 1000;
+    const m4 = twgl.m4;
+    const canvas = document.querySelector("#glcanvas");
+    const gl = canvas.getContext("webgl2");
+    if (!gl) {
+        alert("WebGL 2 não está disponível no seu navegador.");
+        return;
     }
-    return value;
-  }
 
-  void main() {
-    vec3 animated_pos = v_worldPosition * 0.2 + vec3(0.0, 0.0, u_time * 0.1);
-    float n = fbm(animated_pos);
-    n = (n + 1.0) * 0.5;
-
-    vec3 color1 = vec3(1.0, 0.5, 0.0);
-    vec3 color2 = vec3(0.8, 0.0, 0.0);
-    vec3 finalColor = mix(color1, color2, n);
-
-    outColor = vec4(finalColor, 1.0);
-  }
-`;
-
-// --- PROGRAMAS E BUFFERS ---
-const planetProgramInfo = twgl.createProgramInfo(gl, [planetVs, planetFs]);
-const sunProgramInfo = twgl.createProgramInfo(gl, [sunVs, sunFs]);
-const sphereBufferInfo = twgl.primitives.createSphereBufferInfo(gl, 1, 32, 24);
-
-// --- UTILIDADES DA CENA ---
-function createNode(drawInfo) {
-  return {
-    localMatrix: m4.identity(),
-    worldMatrix: m4.identity(),
-    children: [],
-    drawInfo: drawInfo
-  };
-}
-
-function updateWorldMatrix(node, parentWorldMatrix) {
-  if (parentWorldMatrix) {
-    m4.multiply(parentWorldMatrix, node.localMatrix, node.worldMatrix);
-  } else {
-    m4.copy(node.localMatrix, node.worldMatrix);
-  }
-  node.children.forEach(child => updateWorldMatrix(child, node.worldMatrix));
-}
-
-function gatherDrawInfo(node, collection) {
-  if (node.drawInfo) {
-    node.drawInfo.node = node;
-    collection.push(node.drawInfo);
-  }
-  node.children.forEach(child => gatherDrawInfo(child, collection));
-}
-
-// --- OBJETOS DA CENA ---
-const sunDrawInfo = {
-  programInfo: sunProgramInfo,
-  bufferInfo: sphereBufferInfo,
-  uniforms: {}
-};
-
-const earthDrawInfo = {
-  programInfo: planetProgramInfo,
-  bufferInfo: sphereBufferInfo,
-  uniforms: { u_color: [0.2, 0.5, 1, 1] }
-};
-
-const moonDrawInfo = {
-  programInfo: planetProgramInfo,
-  bufferInfo: sphereBufferInfo,
-  uniforms: { u_color: [0.7, 0.7, 0.7, 1] }
-};
-
-// --- HIERARQUIA DA CENA ---
-const sunNode = createNode(sunDrawInfo);
-const earthOrbitNode = createNode();
-const earthNode = createNode(earthDrawInfo);
-const moonOrbitNode = createNode();
-const moonNode = createNode(moonDrawInfo);
-
-sunNode.children.push(earthOrbitNode);
-earthOrbitNode.children.push(earthNode);
-earthNode.children.push(moonOrbitNode);
-moonOrbitNode.children.push(moonNode);
-
-// --- CÂMERA ---
-const fov = 60 * Math.PI / 180;
-const aspect = canvas.clientWidth / canvas.clientHeight;
-const zNear = 0.1;
-const zFar = 200;
-const projection = m4.perspective(fov, aspect, zNear, zFar);
-const camera = m4.lookAt([0, 10, 25], [0, 0, 0], [0, 1, 0]);
-const view = m4.inverse(camera);
-const viewProjection = m4.multiply(projection, view);
-
-// --- LOOP DE RENDERIZAÇÃO ---
-requestAnimationFrame(drawScene);
-
-function drawScene(time) {
-  time *= 0.001;
-
-  twgl.resizeCanvasToDisplaySize(gl.canvas);
-  gl.viewport(0, 0, gl.canvas.width, gl.canvas.height);
-  gl.enable(gl.DEPTH_TEST);
-  gl.clearColor(0, 0, 0, 1);
-  gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
-
-  // --- ANIMAÇÕES ---
-  sunNode.localMatrix = m4.rotationY(time * 0.1);
-  earthOrbitNode.localMatrix = m4.rotationY(time * 0.2);
-  m4.translate(earthOrbitNode.localMatrix, [10, 0, 0], earthOrbitNode.localMatrix);
-  earthNode.localMatrix = m4.rotationY(time * 2);
-  moonOrbitNode.localMatrix = m4.rotationY(time * 1.5);
-  m4.translate(moonOrbitNode.localMatrix, [2, 0, 0], moonOrbitNode.localMatrix);
-  moonNode.localMatrix = m4.rotationY(time * -3);
-
-  updateWorldMatrix(sunNode, null);
-
-  const drawInfos = [];
-  gatherDrawInfo(sunNode, drawInfos);
-
-  drawInfos.forEach(info => {
-    const { programInfo, bufferInfo, uniforms, node } = info;
-    gl.useProgram(programInfo.program);
-    twgl.setBuffersAndAttributes(gl, programInfo, bufferInfo);
-
-    const uni = {
-      ...uniforms,
-      u_worldViewProjection: m4.multiply(viewProjection, node.worldMatrix),
-      u_world: node.worldMatrix,
-      u_time: time
+    // [CÂMERA] Objeto para guardar o estado da nossa câmera interativa
+    const cameraState = {
+        target: [0, 0, 0],
+        radius: 500, // Distância inicial aumentada para melhor visualização
+        minRadius: 200,
+        maxRadius: 5000,
+        rotationX: Math.PI / 3, // Ângulo melhor para ver as órbitas
+        rotationY: 0,
+        isDragging: false,
+        lastMouseX: 0,
+        lastMouseY: 0,
     };
 
-    twgl.setUniforms(programInfo, uni);
-    twgl.drawBufferInfo(gl, bufferInfo);
-  });
+    // --- CONSTANTES E DADOS ---
+    const AU = 149.6e6; 
+    
+    // Proporções que ajustamos anteriormente
+    const SCALES = {
+        ORBIT: 4,
+        PLANET: 5000,
+        SUN: 10000,
+        MOON_ORBIT: 375,
+        MOON: 7500,
+    };
 
-  requestAnimationFrame(drawScene);
+    const celestialData = {
+        sol:      { radius: 696340, rotationPeriod: 27, color: [1, 0.8, 0.4, 1] },
+        mercurio: { radius: 2439.7, orbitRadius: 0.387 * AU, orbitalPeriod: 88.0, rotationPeriod: 58.6, color: [0.6, 0.6, 0.6, 1] },
+        venus:    { radius: 6051.8, orbitRadius: 0.723 * AU, orbitalPeriod: 224.7, rotationPeriod: -243.0, color: [0.9, 0.7, 0.5, 1] },
+        terra:    { radius: 6371, orbitRadius: 1 * AU, orbitalPeriod: 365.2, rotationPeriod: 1.0, color: [0.2, 0.5, 1, 1], moons: { lua: { radius: 1737.4, orbitRadius: 384400, orbitalPeriod: 27.3, color: [0.7, 0.7, 0.7, 1] } } },
+        marte:    { radius: 3389.5, orbitRadius: 1.524 * AU, orbitalPeriod: 687.0, rotationPeriod: 1.03, color: [0.8, 0.4, 0.2, 1] },
+        ceres:    { radius: 476, orbitRadius: 2.766 * AU, orbitalPeriod: 1680, rotationPeriod: 0.37, color: [0.5, 0.5, 0.4, 1] },
+        jupiter:  { radius: 69911, orbitRadius: 5.204 * AU, orbitalPeriod: 4332.6, rotationPeriod: 0.41, color: [0.8, 0.7, 0.6, 1] },
+        saturno:  { radius: 58232, orbitRadius: 9.582 * AU, orbitalPeriod: 10759.2, rotationPeriod: 0.44, color: [0.9, 0.85, 0.7, 1] },
+        urano:    { radius: 25362, orbitRadius: 19.229 * AU, orbitalPeriod: 30688.5, rotationPeriod: -0.72, color: [0.6, 0.8, 0.9, 1] },
+        netuno:   { radius: 24622, orbitRadius: 30.104 * AU, orbitalPeriod: 60182, rotationPeriod: 0.67, color: [0.3, 0.5, 0.9, 1] },
+    };
+
+    // --- SETUP DA CENA E OBJETOS ---
+    const sunProgramInfo = twgl.createProgramInfo(gl, [sunVs, sunFs]);
+    const planetProgramInfo = twgl.createProgramInfo(gl, [planetVs, planetFs]);
+    const lineProgramInfo = twgl.createProgramInfo(gl, [lineVs, lineFs]);
+    const sphereBufferInfo = twgl.primitives.createSphereBufferInfo(gl, 1, 32, 24);
+
+    const scene = { nodes: {}, drawables: [], orbits: [] };
+    const simulation = { time: INITIAL_SIMULATION_DAY, speed: 1, isPlaying: true, lastTime: 0 };
+
+    function createNode(name, drawInfo = null) {
+        const node = { name, localMatrix: m4.identity(), worldMatrix: m4.identity(), children: [], drawInfo };
+        scene.nodes[name] = node;
+        if (drawInfo) {
+            drawInfo.node = node;
+            scene.drawables.push(drawInfo);
+        }
+        return node;
+    }
+
+    // Função para criar linha de órbita com Y=0 consistente
+    function createOrbitLine(orbitRadius) {
+        const orbitVertices = [];
+        const segments = 128;
+        for (let i = 0; i <= segments; i++) {
+            const angle = (i / segments) * 2 * Math.PI;
+            // CRÍTICO: Y sempre = 0 para manter as órbitas no plano horizontal onde os planetas orbitam
+            orbitVertices.push(
+                Math.cos(angle) * orbitRadius, 
+                0,  // Y fixo em 0 - mesmo plano onde os planetas orbitam
+                Math.sin(angle) * orbitRadius
+            );
+        }
+        return twgl.createBufferInfoFromArrays(gl, { 
+            position: { numComponents: 3, data: orbitVertices } 
+        });
+    }
+
+    // Criar o Sol
+    const sunNode = createNode("sol", { programInfo: sunProgramInfo, bufferInfo: sphereBufferInfo, uniforms: {} });
+    
+    // Criar planetas e suas órbitas
+    for (const [name, data] of Object.entries(celestialData)) {
+        if (name === 'sol') continue;
+        
+        // Criar nó de órbita do planeta
+        const orbitNode = createNode(`${name}Orbit`);
+        sunNode.children.push(orbitNode);
+        
+        // Criar o planeta
+        const planetNode = createNode(name, { 
+            programInfo: planetProgramInfo, 
+            bufferInfo: sphereBufferInfo, 
+            uniforms: { u_color: data.color } 
+        });
+        orbitNode.children.push(planetNode);
+        
+        // Criar linha de órbita do planeta (centrada no Sol)
+        const orbitRadius = (data.orbitRadius / AU) * SCALES.ORBIT;
+        scene.orbits.push({
+            bufferInfo: createOrbitLine(orbitRadius),
+            programInfo: lineProgramInfo,
+            planetName: name, // Para debug
+            orbitType: 'planet'
+        });
+        
+        // Criar luas se existirem
+        if (data.moons) {
+            for (const [moonName, moonData] of Object.entries(data.moons)) {
+                // Criar nó de órbita da lua
+                const moonOrbitNode = createNode(`${moonName}Orbit`);
+                planetNode.children.push(moonOrbitNode);
+                
+                // Criar a lua
+                const moonNode = createNode(moonName, { 
+                    programInfo: planetProgramInfo, 
+                    bufferInfo: sphereBufferInfo, 
+                    uniforms: { u_color: moonData.color } 
+                });
+                moonOrbitNode.children.push(moonNode);
+                
+                // Criar linha de órbita da lua (será transformada junto com o planeta)
+                const moonOrbitRadius = (moonData.orbitRadius / AU) * SCALES.MOON_ORBIT;
+                scene.orbits.push({
+                    bufferInfo: createOrbitLine(moonOrbitRadius),
+                    programInfo: lineProgramInfo,
+                    parentNode: planetNode, // Referência para transformar junto com o planeta
+                    orbitType: 'moon',
+                    moonName: moonName,
+                    planetName: name
+                });
+            }
+        }
+    }
+
+    function updateWorldMatrix(node, parentWorldMatrix) {
+        m4.copy(node.localMatrix, node.worldMatrix);
+        if (parentWorldMatrix) {
+            m4.multiply(parentWorldMatrix, node.worldMatrix, node.worldMatrix);
+        }
+        node.children.forEach(child => updateWorldMatrix(child, node.worldMatrix));
+    }
+
+    const fov = 60 * Math.PI / 180;
+    const zNear = 0.01;
+    const zFar = 300000;
+
+    function render(time) {
+        time *= 0.001;
+        if (simulation.lastTime === 0) simulation.lastTime = time;
+        let deltaTime = time - simulation.lastTime;
+        simulation.lastTime = time;
+
+        if (simulation.isPlaying) {
+            simulation.time += deltaTime * simulation.speed;
+        }
+
+        const displayDay = simulation.time - INITIAL_SIMULATION_DAY;
+
+        document.getElementById('time-slider').value = displayDay;
+        document.getElementById('date-label').textContent = `Dia: ${Math.floor(displayDay)}`;
+
+        // --- Atualização das Matrizes dos Objetos ---
+        const simTime = simulation.time;
+        const sunData = celestialData.sol;
+        
+        // Atualizar o Sol
+        m4.identity(scene.nodes.sol.localMatrix);
+        m4.rotateY(scene.nodes.sol.localMatrix, (simTime / sunData.rotationPeriod) * 2 * Math.PI, scene.nodes.sol.localMatrix);
+        m4.scale(scene.nodes.sol.localMatrix, Array(3).fill((sunData.radius / AU) * SCALES.SUN), scene.nodes.sol.localMatrix);
+        
+        // Atualizar planetas
+        for (const [name, data] of Object.entries(celestialData)) {
+            if (name === 'sol') continue;
+            
+            const orbitRadius = (data.orbitRadius / AU) * SCALES.ORBIT;
+            const orbitAngle = (simTime / data.orbitalPeriod) * 2 * Math.PI;
+            const orbitNode = scene.nodes[`${name}Orbit`];
+            
+            // CRÍTICO: O planeta orbita exatamente no plano Y=0
+            // Isso garante que ele fique exatamente sobre a linha de órbita
+            m4.identity(orbitNode.localMatrix);
+            m4.rotateY(orbitNode.localMatrix, orbitAngle, orbitNode.localMatrix);
+            m4.translate(orbitNode.localMatrix, [orbitRadius, 0, 0], orbitNode.localMatrix);
+            
+            const planetNode = scene.nodes[name];
+            const planetScale = (data.radius / AU) * SCALES.PLANET;
+            m4.identity(planetNode.localMatrix);
+            m4.rotateY(planetNode.localMatrix, (simTime / data.rotationPeriod) * 2 * Math.PI, planetNode.localMatrix);
+            m4.scale(planetNode.localMatrix, [planetScale, planetScale, planetScale], planetNode.localMatrix);
+            
+            // Atualizar luas
+            if (data.moons) {
+                for (const [moonName, moonData] of Object.entries(data.moons)) {
+                    const moonOrbitRadius = (moonData.orbitRadius / AU) * SCALES.MOON_ORBIT;
+                    const moonOrbitAngle = (simTime / moonData.orbitalPeriod) * 2 * Math.PI;
+                    const moonOrbitNode = scene.nodes[`${moonName}Orbit`];
+                    
+                    // CRÍTICO: A lua também orbita no plano Y=0 relativo ao planeta
+                    m4.identity(moonOrbitNode.localMatrix);
+                    m4.rotateY(moonOrbitNode.localMatrix, moonOrbitAngle, moonOrbitNode.localMatrix);
+                    m4.translate(moonOrbitNode.localMatrix, [moonOrbitRadius, 0, 0], moonOrbitNode.localMatrix);
+                    
+                    const moonNode = scene.nodes[moonName];
+                    const moonScale = (moonData.radius / AU) * SCALES.MOON;
+                    m4.identity(moonNode.localMatrix);
+                    m4.scale(moonNode.localMatrix, [moonScale, moonScale, moonScale], moonNode.localMatrix);
+                }
+            }
+        }
+        
+        updateWorldMatrix(sunNode);
+
+        // --- Desenhar a cena ---
+        twgl.resizeCanvasToDisplaySize(gl.canvas);
+        gl.viewport(0, 0, gl.canvas.width, gl.canvas.height);
+        gl.enable(gl.DEPTH_TEST);
+        gl.enable(gl.CULL_FACE);
+        gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+
+        const aspect = gl.canvas.clientWidth / gl.canvas.clientHeight;
+        const projection = m4.perspective(fov, aspect, zNear, zFar);
+        
+        // [CÂMERA] Calcula a posição da câmera a partir do seu estado
+        const cameraPosition = [
+            Math.cos(cameraState.rotationY) * Math.sin(cameraState.rotationX) * cameraState.radius,
+            Math.cos(cameraState.rotationX) * cameraState.radius,
+            Math.sin(cameraState.rotationY) * Math.sin(cameraState.rotationX) * cameraState.radius
+        ];
+        const camera = m4.lookAt(cameraPosition, cameraState.target, [0, 1, 0]);
+        const view = m4.inverse(camera);
+        const viewProjection = m4.multiply(projection, view);
+
+        // --- Desenhar órbitas PRIMEIRO (para que fiquem atrás dos planetas) ---
+        gl.useProgram(lineProgramInfo.program);
+        
+        // Desenhar órbitas dos planetas e luas
+        scene.orbits.forEach(orbit => {
+            twgl.setBuffersAndAttributes(gl, lineProgramInfo, orbit.bufferInfo);
+            
+            let orbitMatrix;
+            if (orbit.orbitType === 'planet') {
+                // Órbita do planeta - centrada no Sol (sem transformação adicional)
+                orbitMatrix = viewProjection;
+            } else if (orbit.orbitType === 'moon' && orbit.parentNode) {
+                // Órbita da lua - transformada pela posição do planeta
+                orbitMatrix = m4.multiply(viewProjection, orbit.parentNode.worldMatrix);
+            } else {
+                orbitMatrix = viewProjection;
+            }
+            
+            twgl.setUniforms(lineProgramInfo, { u_matrix: orbitMatrix });
+            twgl.drawBufferInfo(gl, orbit.bufferInfo, gl.LINE_LOOP);
+        });
+
+        // --- Desenhar objetos celestes ---
+        scene.drawables.forEach(drawable => {
+            gl.useProgram(drawable.programInfo.program);
+            twgl.setBuffersAndAttributes(gl, drawable.programInfo, drawable.bufferInfo);
+            const worldViewProjection = m4.multiply(viewProjection, drawable.node.worldMatrix);
+            twgl.setUniforms(drawable.programInfo, {
+                ...drawable.uniforms,
+                u_worldViewProjection: worldViewProjection,
+                u_world: drawable.node.worldMatrix,
+                u_time: time,
+            });
+            twgl.drawBufferInfo(gl, drawable.bufferInfo);
+        });
+
+        requestAnimationFrame(render);
+    }
+
+    // [CÂMERA] Listeners de eventos do mouse para controlar a câmera
+    canvas.addEventListener('mousedown', (e) => {
+        cameraState.isDragging = true;
+        cameraState.lastMouseX = e.clientX;
+        cameraState.lastMouseY = e.clientY;
+    });
+    
+    canvas.addEventListener('mouseup', () => {
+        cameraState.isDragging = false;
+    });
+    
+    canvas.addEventListener('mousemove', (e) => {
+        if (!cameraState.isDragging) return;
+        const deltaX = e.clientX - cameraState.lastMouseX;
+        const deltaY = e.clientY - cameraState.lastMouseY;
+        
+        cameraState.rotationY += deltaX * 0.005;
+        cameraState.rotationX += deltaY * 0.005;
+
+        // Limita a rotação vertical para não "virar de cabeça para baixo"
+        cameraState.rotationX = Math.max(0.1, Math.min(Math.PI - 0.1, cameraState.rotationX));
+
+        cameraState.lastMouseX = e.clientX;
+        cameraState.lastMouseY = e.clientY;
+    });
+    
+    canvas.addEventListener('wheel', (e) => {
+        // Previne a página de rolar junto
+        e.preventDefault();
+        cameraState.radius += e.deltaY * 1.5;
+        // Limita o zoom para não se aproximar ou afastar demais
+        cameraState.radius = Math.max(cameraState.minRadius, Math.min(cameraState.maxRadius, cameraState.radius));
+    });
+
+    // Controles de UI
+    const playPauseButton = document.getElementById('play-pause-button');
+    const timeSlider = document.getElementById('time-slider');
+    
+    playPauseButton.addEventListener('click', () => {
+        simulation.isPlaying = !simulation.isPlaying;
+        playPauseButton.textContent = simulation.isPlaying ? 'Pause' : 'Play';
+    });
+    
+    timeSlider.addEventListener('input', (e) => {
+        simulation.time = parseFloat(e.target.value) + INITIAL_SIMULATION_DAY;
+    });
+
+    requestAnimationFrame(render);
 }
+
+main();
