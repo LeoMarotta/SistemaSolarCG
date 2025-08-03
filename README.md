@@ -11,13 +11,15 @@ Este projeto é o desenvolvimento de uma simulação 3D interativa do Sistema So
 * **Gráficos:** WebGL2
 * **Linguagem:** JavaScript
 * **Bibliotecas Auxiliares:**
-    * [cite_start][TWGL.js](https://twgljs.org/) 
-    * [cite_start][WebGL2 Fundamentals Utils](https://webgl2fundamentals.org/) 
+    * [TWGL.js](https://twgljs.org/) 
+    * [WebGL2 Fundamentals Utils](https://webgl2fundamentals.org/) 
 
 ## Estrutura de Arquivos
-.
+
 ├── index.html       # Estrutura principal da página
+
 ├── main.js          # Código JavaScript da aplicação
+
 └── README.md        # Documentação do projeto
 
 ## Como Executar o Projeto
@@ -30,4 +32,4 @@ Devido às políticas de segurança dos navegadores (CORS), os arquivos não pod
     ```bash
     npx serve
     ```
-4.  Abra seu navegador e acesse a URL fornecida pelo comando (geralmente `http://localhost:5000`).
+4.  Abra seu navegador e acesse a URL fornecida pelo comando (geralmente `http://localhost:3000`).
