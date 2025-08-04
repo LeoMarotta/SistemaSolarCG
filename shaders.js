@@ -25,7 +25,7 @@ const sunFs = `#version 300 es
     vec3 viewVec = normalize(u_viewWorldPosition - v_worldPosition);
     float rim = 1.0 - dot(normal, viewVec);
     rim = pow(rim, 3.0); // Power enhances the effect
-    vec3 k = vec3(1.0, 0.6, 0.2);
+    vec3 k = vec3(1.0, 0.6, 0.1);
     e = mix(e, k, rim);
 
     outColor=vec4(e,1.);
