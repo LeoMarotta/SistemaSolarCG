@@ -51,18 +51,18 @@ function main() {
     };
 
     const textures = twgl.createTextures(gl, {
-        sol:      { src: celestialData.sol.textureUrl },
-        mercurio: { src: celestialData.mercurio.textureUrl },
-        venus:    { src: celestialData.venus.textureUrl },
-        terra:    { src: celestialData.terra.textureUrl },
-        lua:      { src: celestialData.terra.moons.lua.textureUrl },
-        marte:    { src: celestialData.marte.textureUrl },
-        ceres:    { src: celestialData.ceres.textureUrl },
-        jupiter:  { src: celestialData.jupiter.textureUrl },
-        saturno:  { src: celestialData.saturno.textureUrl },
-        urano:    { src: celestialData.urano.textureUrl },
-        netuno:   { src: celestialData.netuno.textureUrl }
-    });
+    sol:      { src: celestialData.sol.textureUrl, flipY: true },
+    mercurio: { src: celestialData.mercurio.textureUrl, flipY: true },
+    venus:    { src: celestialData.venus.textureUrl, flipY: true },
+    terra:    { src: celestialData.terra.textureUrl, flipY: true },
+    lua:      { src: celestialData.terra.moons.lua.textureUrl, flipY: true },
+    marte:    { src: celestialData.marte.textureUrl, flipY: true },
+    ceres:    { src: celestialData.ceres.textureUrl, flipY: true },
+    jupiter:  { src: celestialData.jupiter.textureUrl, flipY: true },
+    saturno:  { src: celestialData.saturno.textureUrl, flipY: true },
+    urano:    { src: celestialData.urano.textureUrl, flipY: true },
+    netuno:   { src: celestialData.netuno.textureUrl, flipY: true }
+});
 
     const sunProgramInfo = twgl.createProgramInfo(gl, [sunVs, sunFs]);
     const planetProgramInfo = twgl.createProgramInfo(gl, [planetVs, planetFs]);
