@@ -5,7 +5,7 @@ const sunVs = `#version 300 es
   out vec3 v_worldPosition; 
   out vec2 v_texcoord;
   void main() { gl_Position = u_worldViewProjection * position; v_worldPosition = (u_world * position).xyz; v_texcoord = texcoord; }`;
-// In const sunFs
+
 const sunFs = `#version 300 es
   precision highp float; 
   in vec3 v_worldPosition; 

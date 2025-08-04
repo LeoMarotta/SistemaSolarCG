@@ -1,12 +1,10 @@
-/* Importa a fonte 'Inter' do Google Fonts */
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&display=swap');
 
-/* Estilos gerais do corpo da página */
 body {
 margin: 0;
 overflow: hidden;
 background-color: #000;
-font-family: 'Inter', sans-serif; /* Usa a nova fonte */
+font-family: 'Inter', sans-serif; 
 }
 
 canvas {
@@ -15,37 +13,34 @@ width: 100vw;
 height: 100vh;
 }
 
-/* Container principal da UI */
 #ui-container {
 position: absolute;
 bottom: 25px;
 left: 50%;
 transform: translateX(-50%);
 
-/* Efeito de "vidro" */
 background-color: rgba(85, 83, 83, 0.5);
 backdrop-filter: blur(10px);
--webkit-backdrop-filter: blur(10px); /* Suporte para Safari */
+-webkit-backdrop-filter: blur(10px);
 
 padding: 12px 20px;
-border-radius: 50px; /* Bordas arredondadas para um visual de "pílula" */
+border-radius: 50px; 
 border: 1px solid rgba(255, 255, 255, 0.1);
 
 color: white;
 display: flex;
 align-items: center;
-gap: 10px; /* Espaçamento entre os elementos */
+gap: 10px; 
 box-shadow: 0 4px 30px rgba(0, 0, 0, 0.2);
 }
 
-/* Estilo geral dos botões */
 #ui-container button {
 background-color: transparent;
 border: none;
 color: white;
 cursor: pointer;
 padding: 10px;
-border-radius: 50%; /* Botões perfeitamente redondos */
+border-radius: 50%; 
 display: flex;
 align-items: center;
 justify-content: center;
@@ -54,29 +49,25 @@ width: 44px;
 height: 44px;
 }
 
-/* Efeito ao passar o mouse sobre os botões */
 #ui-container button:hover {
 background-color: rgba(255, 255, 255, 0.15);
 }
 
-/* Estilo para os ícones SVG dentro dos botões */
 #ui-container button svg {
 width: 20px;
 height: 20px;
 }
 
-/* Container para os textos de Dia e Velocidade */
 .labels-container {
 display: flex;
 flex-direction: column;
 align-items: flex-start;
-margin: 0 15px; /* Margem para separar dos botões */
+margin: 0 15px; 
 padding-left: 15px;
-border-left: 1px solid rgba(255, 255, 255, 0.3); /* Linha divisória */
+border-left: 1px solid rgba(255, 255, 255, 0.3);
 min-width: 130px;
 }
 
-/* Estilo para os textos (labels) */
 .labels-container span {
 font-size: 14px;
 line-height: 1.4;
