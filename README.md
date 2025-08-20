@@ -34,4 +34,3 @@ Devido às políticas de segurança dos navegadores (CORS), os arquivos não pod
     ```
 4.  Abra seu navegador e acesse a URL fornecida pelo comando (geralmente `http://localhost:3000`).
 
-https://drive.google.com/file/d/1_7-iT31kqNDssi6wqkp2C9o8zX99W0Wd/view?usp=sharing
